@@ -1,5 +1,5 @@
 use structopt::StructOpt;
-use updadmin::{list_database_names, show_history_for};
+use updadmin::{info_for, list_database_names, show_history_for};
 
 #[tokio::main]
 async fn main() {
@@ -17,6 +17,11 @@ async fn main() {
             raw_format,
             database,
         } => show_history_for(raw_format, database).await,
+        Command::Info {
+            raw_format,
+            database,
+            changeset_id,
+        } => info_for(raw_format, database, changeset_id).await,
     }
     .expect("COMMAND FAILED");
 }
@@ -35,7 +40,19 @@ enum Command {
         #[structopt(short, long)]
         raw_format: bool,
 
-        #[structopt(name = "database", long = "database", short = "d")]
+        #[structopt(short, long)]
         database: String,
+    },
+    /// Display information about a changeset
+    Info {
+        /// Display in raw format
+        #[structopt(short, long)]
+        raw_format: bool,
+
+        #[structopt(short, long)]
+        database: String,
+
+        #[structopt(short, long)]
+        changeset_id: String,
     },
 }

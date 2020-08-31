@@ -51,6 +51,36 @@ pub async fn show_history_for(raw_format: bool, database: String) -> Result<(), 
     Ok(())
 }
 
+pub async fn info_for(
+    raw_format: bool,
+    database: String,
+    changeset_id: String,
+) -> Result<(), Error> {
+    let client = get_mongo_client().expect("Client should be created");
+    let db = client.database(&database);
+
+    let collection = db.collection("changeset");
+    let doc_filter = doc! { "_id": bson::oid::ObjectId::with_string(&changeset_id).unwrap()};
+    let cursor = collection.find_one(Some(doc_filter), None).await?;
+    match cursor {
+        Some(doc) => {
+            let changeset: Changeset = bson::from_bson(Bson::Document(doc))?;
+
+            if raw_format {
+                display_changeset_in_raw(database, changeset)
+            } else {
+                display_changeset_in_table(database, changeset)
+            }
+        }
+        None => error!(
+            "Changeset {} on database {} not found.",
+            changeset_id, database
+        ),
+    }
+
+    Ok(())
+}
+
 fn get_mongo_client() -> Result<Client, Error> {
     let mongo_root_pwd = std::env::var("MONGODB_ROOT_PASSWD");
     if mongo_root_pwd.is_err() {
@@ -126,6 +156,58 @@ fn display_changesets_in_raw(changesets: Vec<Changeset>) {
     }
 }
 
+fn display_changeset_in_raw(database: String, changeset: Changeset) {
+    info!("Changeset {} from database {}", changeset.id, database);
+    info!("{:#?}", changeset);
+}
+
+fn display_changeset_in_table(database: String, c: Changeset) {
+    info!("Changeset {} from database {}", c.id, database);
+
+    let mut table = Table::new();
+
+    table
+        .load_preset(UTF8_FULL)
+        .apply_modifier(UTF8_ROUND_CORNERS)
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(vec![
+            Cell::new("Key")
+                .fg(Color::DarkMagenta)
+                .add_attribute(Attribute::Bold),
+            Cell::new("Value")
+                .fg(Color::DarkMagenta)
+                .add_attribute(Attribute::Bold),
+        ]);
+
+    table.add_row(vec![Cell::new("ID"), Cell::new(format!("{} ", c.id))]);
+    table.add_row(vec![
+        Cell::new("Changetset ID "),
+        Cell::new(format!("{} ", c.change_set_id)),
+    ]);
+    table.add_row(vec![
+        Cell::new("Author"),
+        Cell::new(format!("{} ", c.author)),
+    ]);
+    table.add_row(vec![
+        Cell::new("Status"),
+        Cell::new(format!("{} ", c.status)).fg(get_status_color(&c.status)),
+    ]);
+    table.add_row(vec![
+        Cell::new("Lock date"),
+        Cell::new(format!("{} ", c.lock_date.to_rfc3339())),
+    ]);
+    table.add_row(vec![
+        Cell::new("Status date"),
+        Cell::new(match c.status_date {
+            Some(status_date) => status_date.to_rfc3339(),
+            None => "Null".into(),
+        }),
+    ]);
+
+    table.add_row(vec![Cell::new("Force"), Cell::new(format!("{} ", c.force))]);
+
+    println!("{}", table);
+}
 fn get_status_color(status: &str) -> Color {
     match status {
         "OK" => Color::Green,
