@@ -12,8 +12,11 @@ async fn main() {
     pretty_env_logger::init();
 
     match command {
-        Command::List => list_database_names().await,
-        Command::History { database } => show_history_for(database).await,
+        Command::List { raw_format } => list_database_names(raw_format).await,
+        Command::History {
+            raw_format,
+            database,
+        } => show_history_for(raw_format, database).await,
     }
     .expect("COMMAND FAILED");
 }
@@ -21,9 +24,17 @@ async fn main() {
 #[derive(Debug, StructOpt, PartialEq)]
 enum Command {
     /// List all availables databases
-    List,
+    List {
+        /// Display in raw format
+        #[structopt(short, long)]
+        raw_format: bool,
+    },
     /// History of changes
     History {
+        /// Display in raw format
+        #[structopt(short, long)]
+        raw_format: bool,
+
         #[structopt(name = "database", long = "database", short = "d")]
         database: String,
     },

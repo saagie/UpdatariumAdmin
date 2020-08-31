@@ -17,14 +17,17 @@ use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::*;
 
-pub async fn list_database_names() -> Result<(), Error> {
+pub async fn list_database_names(raw_format: bool) -> Result<(), Error> {
     let databases = mongo_list_updatarium_databases().await;
-    display_databases_in_table(databases);
+    if raw_format {
+        display_databases_in_raw(databases);
+    } else {
+        display_databases_in_table(databases);
+    }
     Ok(())
 }
 
-pub async fn show_history_for(database: String) -> Result<(), Error> {
-    info!("History from {}", database);
+pub async fn show_history_for(raw_format: bool, database: String) -> Result<(), Error> {
     let client = get_mongo_client().expect("Client should be created");
     let db = client.database(&database);
 
@@ -38,7 +41,12 @@ pub async fn show_history_for(database: String) -> Result<(), Error> {
         let changeset: Changeset = bson::from_bson(Bson::Document(doc?))?;
         vec.push(changeset);
     }
-    display_changesets_in_table(vec);
+    info!("History from {}", database);
+    if raw_format {
+        display_changesets_in_raw(vec);
+    } else {
+        display_changesets_in_table(vec);
+    }
 
     Ok(())
 }
@@ -87,22 +95,41 @@ fn display_changesets_in_table(changesets: Vec<Changeset>) {
             Cell::new("Status")
                 .fg(Color::DarkMagenta)
                 .add_attribute(Attribute::Bold),
+            Cell::new("Date")
+                .fg(Color::DarkMagenta)
+                .add_attribute(Attribute::Bold),
         ]);
     for c in changesets {
         table.add_row(vec![
-            Cell::new(format!("{} ", c.id)),
+            Cell::new(format!("{} ", c.id)).fg(get_status_color(&c.status)),
             Cell::new(format!("{} ", c.change_set_id)),
             Cell::new(format!("{} ", c.author)),
             Cell::new(format!("{} ", c.status)).fg(get_status_color(&c.status)),
+            Cell::new(format!("{} ", c.lock_date.to_rfc3339())),
         ]);
     }
 
     println!("{}", table);
 }
 
+fn display_changesets_in_raw(changesets: Vec<Changeset>) {
+    info!("ID - Changeset ID - Author - Status - Date");
+    for c in changesets {
+        info!(
+            "{} - {} - {} - {} - {}",
+            c.id,
+            c.change_set_id,
+            c.author,
+            c.status,
+            c.lock_date.to_rfc3339()
+        );
+    }
+}
+
 fn get_status_color(status: &str) -> Color {
     match status {
         "OK" => Color::Green,
+        "FAIL" => Color::Red,
         _ => Color::White,
     }
 }
@@ -120,6 +147,14 @@ fn display_databases_in_table(databases: Vec<String>) {
     }
     println!("{}", table);
 }
+
+fn display_databases_in_raw(databases: Vec<String>) {
+    info!("Databases:");
+    for d in databases {
+        info!("> {} ", d);
+    }
+}
+
 async fn mongo_list_updatarium_databases() -> Vec<String> {
     let client = get_mongo_client().expect("Client should be created");
     let databases: Vec<String> = client
