@@ -25,9 +25,9 @@ mod changeset;
 #[macro_use]
 extern crate anyhow;
 
-pub async fn list_database_names(raw_format: bool) -> anyhow::Result<()> {
+pub async fn list_database_names(raw: bool) -> anyhow::Result<()> {
     let databases = mongo_list_updatarium_databases().await;
-    if raw_format {
+    if raw {
         display_databases_in_raw(databases);
     } else {
         display_databases_in_table(databases);
@@ -35,11 +35,15 @@ pub async fn list_database_names(raw_format: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn show_history_for(raw_format: bool, database: String) -> anyhow::Result<()> {
+pub async fn show_history_for(raw: bool, database: String, all: bool) -> anyhow::Result<()> {
     let client = get_mongo_client().expect("Client should be created");
     let db = client.database(&database);
 
-    let filter = doc! {};
+    let filter = if all {
+        doc! {}
+    } else {
+        doc! {"status": { "$ne":"EXECUTE"}}
+    };
     let find_options = FindOptions::builder().sort(doc! { "lockDate": 1 }).build();
 
     let collection = db.collection("changeset");
@@ -50,7 +54,7 @@ pub async fn show_history_for(raw_format: bool, database: String) -> anyhow::Res
         vec.push(changeset);
     }
     info!("History from {}", database);
-    if raw_format {
+    if raw {
         display_changesets_in_raw(vec);
     } else {
         display_changesets_in_table(vec);
@@ -59,11 +63,7 @@ pub async fn show_history_for(raw_format: bool, database: String) -> anyhow::Res
     Ok(())
 }
 
-pub async fn info_for(
-    raw_format: bool,
-    database: String,
-    changeset_id: String,
-) -> anyhow::Result<()> {
+pub async fn info_for(raw: bool, database: String, changeset_id: String) -> anyhow::Result<()> {
     let client = get_mongo_client().expect("Client should be created");
     let db = client.database(&database);
 
@@ -76,7 +76,7 @@ pub async fn info_for(
         vec.push(changeset);
     }
     info!("History from {}", database);
-    if raw_format {
+    if raw {
         display_changesets_in_raw(vec)
     } else {
         display_changesets_in_table(vec)
@@ -86,7 +86,7 @@ pub async fn info_for(
 }
 
 pub async fn create_new_document_from_existing(
-    raw_format: bool,
+    raw: bool,
     database: String,
     changeset_id: String,
     author: String,
@@ -123,7 +123,7 @@ pub async fn create_new_document_from_existing(
             };
             let result = collection.insert_one(doc, None).await;
             if result.is_ok() {
-                info_for(raw_format, database, changeset_id).await.unwrap();
+                info_for(raw, database, changeset_id).await.unwrap();
                 Ok(())
             } else {
                 bail!("Unable to create a new mongodb document")
@@ -147,12 +147,11 @@ pub async fn logs_for(database: String, id: String) -> anyhow::Result<()> {
             let changeset: Changeset = bson::from_bson(Bson::Document(doc))?;
             info!("Logs : {:#?}", changeset.log);
             Ok(())
-        },
+        }
         None => bail!("Changeset not found"),
     };
 
     Ok(())
-    
 }
 
 fn get_mongo_client() -> Result<Client, Error> {
@@ -193,25 +192,29 @@ fn display_changesets_in_table(changesets: Vec<Changeset>) {
             Cell::new("Changeset ID")
                 .fg(Color::DarkMagenta)
                 .add_attribute(Attribute::Bold),
-            Cell::new("Author")
-                .fg(Color::DarkMagenta)
-                .add_attribute(Attribute::Bold),
             Cell::new("Status")
                 .fg(Color::DarkMagenta)
                 .add_attribute(Attribute::Bold),
             Cell::new("Date")
                 .fg(Color::DarkMagenta)
                 .add_attribute(Attribute::Bold),
+            Cell::new("Author")
+                .fg(Color::DarkMagenta)
+                .add_attribute(Attribute::Bold),
+            Cell::new("Force")
+                .fg(Color::DarkMagenta)
+                .add_attribute(Attribute::Bold),
         ]);
     for c in changesets {
         table.add_row(vec![
-            Cell::new(format!("{} ", c.id)),
-            Cell::new(format!("{} ", c.change_set_id)),
-            Cell::new(format!("{} ", c.author)),
-            Cell::new(format!("{} ", c.status))
+            Cell::new(c.id),
+            Cell::new(c.change_set_id),
+            Cell::new(&c.status)
                 .add_attributes(get_status_attributes(&c.status))
                 .fg(get_status_color(&c.status)),
-            Cell::new(format!("{} ", c.lock_date.format("%Y-%m-%d %H:%M:%S"))),
+            Cell::new(c.lock_date.format("%Y-%m-%d %H:%M:%S")),
+            Cell::new(c.author),
+            Cell::new(c.force),
         ]);
     }
 
@@ -219,14 +222,15 @@ fn display_changesets_in_table(changesets: Vec<Changeset>) {
 }
 
 fn display_changesets_in_raw(changesets: Vec<Changeset>) {
-    info!("Changeset ID - Author - Status - Date");
+    info!("ID - Changeset ID - Author - Status - Date");
     for c in changesets {
         info!(
-            "{} - {} - {} - {}",
+            "{} - {} - {} - {} - {}",
+            c.id,
             c.change_set_id,
-            c.author,
             c.status,
-            c.lock_date.to_rfc3339()
+            c.lock_date.format("%Y-%m-%d %H:%M:%S"),
+            c.author
         );
     }
 }

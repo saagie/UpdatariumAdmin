@@ -15,25 +15,26 @@ async fn main() {
     pretty_env_logger::init();
 
     let result = match command {
-        Command::List { raw_format } => list_database_names(raw_format).await,
+        Command::List { raw } => list_database_names(raw).await,
         Command::History {
-            raw_format,
+            raw,
             database,
-        } => show_history_for(raw_format, database).await,
+            all
+        } => show_history_for(raw, database, all).await,
         Command::Info {
-            raw_format,
+            raw,
             database,
             changeset_id,
-        } => info_for(raw_format, database, changeset_id).await,
+        } => info_for(raw, database, changeset_id).await,
         Command::Fix {
-            raw_format,
+            raw,
             database,
             changeset_id,
             author,
             comment,
         } => {
             create_new_document_from_existing(
-                raw_format,
+                raw,
                 database,
                 changeset_id,
                 author,
@@ -44,14 +45,14 @@ async fn main() {
         }
 
         Command::Retry {
-            raw_format,
+            raw,
             database,
             changeset_id,
             author,
             comment,
         } => {
             create_new_document_from_existing(
-                raw_format,
+                raw,
                 database,
                 changeset_id,
                 author,
@@ -75,26 +76,33 @@ enum Command {
     List {
         /// Display in raw format
         #[structopt(short, long)]
-        raw_format: bool,
+        raw: bool,
     },
     /// History of changes
     History {
         /// Display in raw format
         #[structopt(short, long)]
-        raw_format: bool,
+        raw: bool,
 
+        /// database selected
         #[structopt(short, long)]
         database: String,
+
+         /// No filter - display all status
+         #[structopt(short, long)]
+         all: bool,
     },
     /// Display information about a changeset
     Info {
         /// Display in raw format
         #[structopt(short, long)]
-        raw_format: bool,
+        raw: bool,
 
+        /// database selected
         #[structopt(short, long)]
         database: String,
 
+        /// changeset id
         #[structopt(short, long)]
         changeset_id: String,
     },
@@ -102,17 +110,21 @@ enum Command {
     Fix {
         /// Display in raw format
         #[structopt(short, long)]
-        raw_format: bool,
+        raw: bool,
 
+        /// database selected
         #[structopt(short, long)]
         database: String,
 
+        /// changeset id
         #[structopt(short, long)]
         changeset_id: String,
 
+        /// author of the fix (you !) 
         #[structopt(short, long)]
         author: String,
 
+        /// Describe the problem, the fix and what you want to say about the fix of the fail
         #[structopt(long)]
         comment: Vec<String>,
     },
@@ -121,26 +133,32 @@ enum Command {
     Retry {
         /// Display in raw format
         #[structopt(short, long)]
-        raw_format: bool,
+        raw: bool,
 
+        /// database selected
         #[structopt(short, long)]
         database: String,
 
+        /// changeset id
         #[structopt(short, long)]
         changeset_id: String,
 
+        /// author of the fix (you !) 
         #[structopt(short, long)]
         author: String,
 
+        /// Describe the problem and what you want to say about this retry
         #[structopt(long)]
         comment: Vec<String>,
     },
 
     /// Display logs for a changeset run
     Logs {
+        /// database selected
         #[structopt(short, long)]
         database: String,
 
+        /// id
         #[structopt(short, long)]
         id: String,
     },
