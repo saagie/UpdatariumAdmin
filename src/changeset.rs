@@ -15,4 +15,5 @@ pub struct Changeset {
     #[serde(rename = "statusDate")]
     pub status_date: Option<DateTime>,
     pub force: bool,
+    pub log: Vec<String>,
 }

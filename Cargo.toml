@@ -19,6 +19,7 @@ chrono = { version = "0.4", features = ["serde"] }
 bson = "1.1.0"
 comfy-table = "1.1.1"
 structopt = { version = "0.3", features = ["color", "suggestions"] }
+anyhow = "1.0.32"
 
 [dev-dependencies]
 test-case = "1.0"
