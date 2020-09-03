@@ -134,6 +134,27 @@ pub async fn create_new_document_from_existing(
     Ok(())
 }
 
+pub async fn logs_for(database: String, id: String) -> anyhow::Result<()> {
+    let client = get_mongo_client().expect("Client should be created");
+    let db = client.database(&database);
+
+    let doc_filter = doc! { "_id": bson::oid::ObjectId::with_string(&id)? };
+
+    let collection = db.collection("changeset");
+    let opt_doc = collection.find_one(Some(doc_filter), None).await?;
+    let _: anyhow::Result<()> = match opt_doc {
+        Some(doc) => {
+            let changeset: Changeset = bson::from_bson(Bson::Document(doc))?;
+            info!("Logs : {:#?}", changeset.log);
+            Ok(())
+        },
+        None => bail!("Changeset not found"),
+    };
+
+    Ok(())
+    
+}
+
 fn get_mongo_client() -> Result<Client, Error> {
     let mongo_root_pwd = std::env::var("MONGODB_ROOT_PASSWD");
     if mongo_root_pwd.is_err() {
@@ -166,6 +187,9 @@ fn display_changesets_in_table(changesets: Vec<Changeset>) {
         .apply_modifier(UTF8_ROUND_CORNERS)
         .set_content_arrangement(ContentArrangement::Dynamic)
         .set_header(vec![
+            Cell::new("ID")
+                .fg(Color::DarkMagenta)
+                .add_attribute(Attribute::Bold),
             Cell::new("Changeset ID")
                 .fg(Color::DarkMagenta)
                 .add_attribute(Attribute::Bold),
@@ -181,6 +205,7 @@ fn display_changesets_in_table(changesets: Vec<Changeset>) {
         ]);
     for c in changesets {
         table.add_row(vec![
+            Cell::new(format!("{} ", c.id)),
             Cell::new(format!("{} ", c.change_set_id)),
             Cell::new(format!("{} ", c.author)),
             Cell::new(format!("{} ", c.status))
@@ -209,6 +234,7 @@ fn display_changesets_in_raw(changesets: Vec<Changeset>) {
 fn get_status_color(status: &str) -> Color {
     match status {
         "OK" | "MANUAL_OK" => Color::Green,
+        "RETRY" => Color::DarkYellow,
         "FAIL" => Color::Red,
         _ => Color::White,
     }

@@ -1,7 +1,7 @@
 use log::error;
 use structopt::StructOpt;
 use updadmin::{
-    create_new_document_from_existing, info_for, list_database_names, show_history_for,
+    create_new_document_from_existing, info_for, list_database_names, show_history_for, logs_for,
 };
 
 #[tokio::main]
@@ -42,6 +42,7 @@ async fn main() {
             )
             .await
         }
+
         Command::Retry {
             raw_format,
             database,
@@ -59,6 +60,7 @@ async fn main() {
             )
             .await
         }
+        Command::Logs { database, id } => logs_for(database, id).await,
     };
 
     match result {
@@ -132,5 +134,14 @@ enum Command {
 
         #[structopt(long)]
         comment: Vec<String>,
+    },
+
+    /// Display logs for a changeset run
+    Logs {
+        #[structopt(short, long)]
+        database: String,
+
+        #[structopt(short, long)]
+        id: String,
     },
 }
